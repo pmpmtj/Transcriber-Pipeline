@@ -1,0 +1,12 @@
+transcribe_pipeline/
+├─ requirements.txt
+├─ config.yaml
+├─ README.md
+├─ run_pipeline.py
+├─ audio_utils/
+│ ├─ __init__.py
+│ ├─ ffprobe.py
+│ ├─ segmenter.py
+│ ├─ transcriber.py
+│ └─ stitcher.py
+└─ outputs/ # will be created at runtime
