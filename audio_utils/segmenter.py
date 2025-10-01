@@ -11,32 +11,31 @@ def _run(cmd):
     return proc
 
 
-def _safe_chunk_window(meta, cfg):
+def _safe_chunk_window(meta, config):
     # Compute chunk seconds from target MB & bitrate; guard with max_chunk_secs
     # MB ≈ (kbps * secs) / (8*1000)  => secs ≈ MB * 8000 / kbps
     bitrate_kbps = max(1, int(meta["bit_rate"]) // 1000)
-    t_by_mb = cfg["target_chunk_mb"] * 8000 / bitrate_kbps
-    t_max = cfg.get("max_chunk_secs", 900)
+    t_by_mb = config.chunking.target_chunk_mb * 8000 / bitrate_kbps
+    t_max = config.chunking.max_chunk_secs
     chunk_secs = max(60, min(t_by_mb, t_max))  # at least 60s
     return float(chunk_secs)
 
 
-def _encode_args(cfg):
-    if not cfg.get("reencode", {}).get("enabled", True):
+def _encode_args(config):
+    if not config.reencode.enabled:
         return []
-    r = cfg["reencode"]
     return [
-        "-ac", str(r.get("channels", 1)),
-        "-ar", str(r.get("sample_rate", 16000)),
-        "-b:a", f"{r.get('bitrate_kbps', 64)}k",
-        "-c:a", r.get("codec", "aac"),
+        "-ac", str(config.reencode.channels),
+        "-ar", str(config.reencode.sample_rate),
+        "-b:a", f"{config.reencode.bitrate_kbps}k",
+        "-c:a", config.reencode.codec,
     ]
 
 
-def _out_ext(cfg):
-    if not cfg.get("reencode", {}).get("enabled", True):
+def _out_ext(config):
+    if not config.reencode.enabled:
         return ".m4a"  # container copy fallback
-    codec = cfg["reencode"].get("codec", "aac").lower()
+    codec = config.reencode.codec.lower()
     return ".m4a" if codec in ("aac", "libfdk_aac") else ".wav"
 
 
@@ -49,13 +48,13 @@ def _format_time(seconds: float) -> str:
     return f"{h:02d}:{m:02d}:{s:02d}.{ms:03d}"
 
 
-def plan_and_segment(input_path: Path, meta: dict, cfg: dict, chunks_dir: Path, manifest_path: Path):
+def plan_and_segment(input_path: Path, meta: dict, config, chunks_dir: Path, manifest_path: Path):
     duration = float(meta["duration"]) or 0.0
     if duration <= 0.0:
         raise ValueError("Could not determine audio duration.")
 
-    overlap = float(cfg.get("overlap_secs", 3.0))
-    window = _safe_chunk_window(meta, cfg)
+    overlap = float(config.chunking.overlap_secs)
+    window = _safe_chunk_window(meta, config)
 
     # Simple fixed windows (optional: add silence-aware refinement later)
     cut_points = []
@@ -66,8 +65,8 @@ def plan_and_segment(input_path: Path, meta: dict, cfg: dict, chunks_dir: Path, 
         cut_points.append((start, end))
         t += window
 
-    encode_args = _encode_args(cfg)
-    ext = _out_ext(cfg)
+    encode_args = _encode_args(config)
+    ext = _out_ext(config)
 
     chunks = []
     for idx, (start, end) in enumerate(cut_points):
@@ -98,11 +97,11 @@ def plan_and_segment(input_path: Path, meta: dict, cfg: dict, chunks_dir: Path, 
     manifest = {
         "input": str(input_path),
         "meta": meta,
-        "cfg_hash": None,  # optional: inject a hash of cfg
+        "cfg_hash": None,  # optional: inject a hash of config
         "chunks": chunks,
-        "model": cfg.get("model"),
-        "response_format": cfg.get("response_format", "json"),
-        "prompt": cfg.get("prompt", ""),
+        "model": config.model.model,
+        "response_format": config.model.response_format,
+        "prompt": config.model.prompt,
     }
 
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")

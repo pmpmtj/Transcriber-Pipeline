@@ -15,11 +15,11 @@ def _save_manifest(manifest_path: Path, manifest: dict):
     manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
-def _transcribe_one(client: OpenAI, chunk: dict, cfg: dict):
+def _transcribe_one(client: OpenAI, chunk: dict, config):
     start = time.time()
-    model = cfg.get("model", "gpt-4o-transcribe")
-    response_format = cfg.get("response_format", "json")
-    prompt = cfg.get("prompt", "")
+    model = config.model.model
+    response_format = config.model.response_format
+    prompt = config.model.prompt
 
     with open(chunk["file"], "rb") as f:
         resp = client.audio.transcriptions.create(
@@ -43,13 +43,13 @@ def _transcribe_one(client: OpenAI, chunk: dict, cfg: dict):
     return text, latency_ms
 
 
-def _retrying_transcribe(client: OpenAI, chunk: dict, cfg: dict):
-    max_retries = int(cfg.get("max_retries", 3))
-    backoff = int(cfg.get("backoff_base_ms", 800))
+def _retrying_transcribe(client: OpenAI, chunk: dict, config):
+    max_retries = config.model.max_retries
+    backoff = config.model.backoff_base_ms
 
     for attempt in range(max_retries + 1):
         try:
-            return _transcribe_one(client, chunk, cfg)
+            return _transcribe_one(client, chunk, config)
         except Exception as e:
             msg = str(e).lower()
             if attempt < max_retries and any(t in msg for t in TRANSIENT_ERRORS):
@@ -59,7 +59,7 @@ def _retrying_transcribe(client: OpenAI, chunk: dict, cfg: dict):
             raise
 
 
-def transcribe_manifest(manifest_path: Path, cfg: dict):
+def transcribe_manifest(manifest_path: Path, config):
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY is not set")
@@ -72,7 +72,7 @@ def transcribe_manifest(manifest_path: Path, cfg: dict):
 
     def work(c):
         try:
-            text, latency = _retrying_transcribe(client, c, cfg)
+            text, latency = _retrying_transcribe(client, c, config)
             c["text"] = text
             c["latency_ms"] = latency
             c["status"] = "done"
@@ -82,7 +82,7 @@ def transcribe_manifest(manifest_path: Path, cfg: dict):
         finally:
             return c
 
-    max_workers = int(cfg.get("parallel_requests", 3))
+    max_workers = config.model.parallel_requests
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as ex:
         futures = [ex.submit(work, c) for c in pending]
         for fut in concurrent.futures.as_completed(futures):

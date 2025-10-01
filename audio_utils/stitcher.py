@@ -130,12 +130,12 @@ def _write_vtt(out_dir: Path, merged_chunks: list):
     (out_dir / "transcript.vtt").write_text("\n".join(lines), encoding="utf-8")
 
 
-def write_side_outputs(out_dir: Path, full_text: str, merged_chunks: list, manifest_path: Path, cfg: dict):
-    if cfg.get("outputs", {}).get("write_txt", True):
+def write_side_outputs(out_dir: Path, full_text: str, merged_chunks: list, manifest_path: Path, config):
+    if config.outputs.write_txt:
         _write_txt(out_dir, full_text)
-    if cfg.get("outputs", {}).get("write_json", True):
+    if config.outputs.write_json:
         _write_json(out_dir, full_text, merged_chunks, manifest_path)
-    if cfg.get("outputs", {}).get("write_srt", True):
+    if config.outputs.write_srt:
         _write_srt(out_dir, merged_chunks)
-    if cfg.get("outputs", {}).get("write_vtt", False):
+    if config.outputs.write_vtt:
         _write_vtt(out_dir, merged_chunks)
