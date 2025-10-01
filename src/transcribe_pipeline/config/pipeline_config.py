@@ -12,8 +12,8 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 from dataclasses import dataclass, field
 
-from utils.path_utils import get_script_directory
-from logging_utils.logging_config import get_logger
+from ..utils.path_utils import get_script_directory
+from ..logging_utils.logging_config import get_logger
 
 
 # ============================================================================
