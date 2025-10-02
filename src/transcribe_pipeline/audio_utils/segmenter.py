@@ -1,11 +1,16 @@
 import json
 import math
-import subprocess
 from pathlib import Path
+from typing import Dict, Any, Optional
+
+from ..dependencies.interfaces import SubprocessProvider, FileSystemProvider
+from ..dependencies.implementations import RealSubprocessProvider, RealFileSystemProvider
 
 
-def _run(cmd):
-    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+def _run(cmd, subprocess_provider: SubprocessProvider):
+    """Run FFmpeg command using the provided subprocess provider."""
+    import subprocess
+    proc = subprocess_provider.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
     if proc.returncode != 0:
         raise RuntimeError(proc.stderr.decode("utf-8", errors="ignore"))
     return proc
@@ -48,7 +53,22 @@ def _format_time(seconds: float) -> str:
     return f"{h:02d}:{m:02d}:{s:02d}.{ms:03d}"
 
 
-def plan_and_segment(input_path: Path, meta: dict, config, chunks_dir: Path, manifest_path: Path):
+def plan_and_segment(
+    input_path: Path, 
+    meta: Dict[str, Any], 
+    config: Any, 
+    chunks_dir: Path, 
+    manifest_path: Path,
+    subprocess_provider: Optional[SubprocessProvider] = None,
+    fs_provider: Optional[FileSystemProvider] = None
+):
+    """Plan and segment audio file using dependency injection."""
+    # Use default providers if not provided (for backward compatibility)
+    if subprocess_provider is None:
+        subprocess_provider = RealSubprocessProvider()
+    if fs_provider is None:
+        fs_provider = RealFileSystemProvider()
+    
     duration = float(meta["duration"]) or 0.0
     if duration <= 0.0:
         raise ValueError("Could not determine audio duration.")
@@ -79,7 +99,7 @@ def plan_and_segment(input_path: Path, meta: dict, config, chunks_dir: Path, man
             "-i", str(input_path),
             "-t", f"{length:.3f}",
         ] + encode_args + [str(out_path)]
-        _run(cmd)
+        _run(cmd, subprocess_provider)
 
         chunks.append({
             "index": idx,
@@ -104,4 +124,6 @@ def plan_and_segment(input_path: Path, meta: dict, config, chunks_dir: Path, man
         "prompt": config.model.prompt,
     }
 
-    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    # Write manifest using file system provider
+    manifest_content = json.dumps(manifest, indent=2)
+    fs_provider.write_text(manifest_path, manifest_content, encoding="utf-8")

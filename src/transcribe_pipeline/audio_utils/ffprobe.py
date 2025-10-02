@@ -1,16 +1,29 @@
 import json
-import subprocess
 from pathlib import Path
+from typing import Dict, Any, Optional
+
+from ..dependencies.interfaces import SubprocessProvider
+from ..dependencies.implementations import RealSubprocessProvider
 
 
-def _run(cmd):
-    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+def _run(cmd, subprocess_provider: SubprocessProvider):
+    """Run FFprobe command using the provided subprocess provider."""
+    import subprocess
+    proc = subprocess_provider.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
     if proc.returncode != 0:
         raise RuntimeError(proc.stderr.decode("utf-8", errors="ignore"))
     return proc.stdout
 
 
-def probe_audio(path: Path) -> dict:
+def probe_audio(
+    path: Path, 
+    subprocess_provider: Optional[SubprocessProvider] = None
+) -> Dict[str, Any]:
+    """Probe audio file metadata using FFprobe with dependency injection."""
+    # Use default provider if not provided (for backward compatibility)
+    if subprocess_provider is None:
+        subprocess_provider = RealSubprocessProvider()
+    
     cmd = [
         "ffprobe",
         "-v", "error",
@@ -19,7 +32,7 @@ def probe_audio(path: Path) -> dict:
         "-show_streams",
         str(path),
     ]
-    out = _run(cmd)
+    out = _run(cmd, subprocess_provider)
     data = json.loads(out.decode("utf-8"))
 
     fmt = data.get("format", {})
