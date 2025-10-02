@@ -123,6 +123,7 @@ dmypy.json
 .pyre/
 
 # Project-specific
+outputs/
 logs/
 *.m4a
 *.mp3
